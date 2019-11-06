@@ -87,7 +87,7 @@ class DataGenerator(Sequence):
             batch_all = pd.concat([batch_pos, batch_neg], axis = 0)
             batch_all.drop('class', axis = 1, inplace = True)
             batch_all.sample(frac=1).reset_index(drop = True)
-            batch_all.to_csv(self.interactions_filename + "_mbatch" + str(batch_num), sep = "\t", header = None) 
+            batch_all.to_csv(self.interactions_filename + "_mbatch" + str(batch_num), sep = "\t", header = None, index = False) 
 
     def _generate_data(self, interactions_bedpe, to_fit):
         # Generate data
