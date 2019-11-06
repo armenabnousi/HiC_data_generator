@@ -12,6 +12,7 @@ import subprocess
 from pybedtools import BedTool
 import random
 from scipy import sparse
+import glob
 
 
 class DataGenerator(Sequence):
