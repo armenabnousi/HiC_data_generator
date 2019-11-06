@@ -13,6 +13,7 @@ from pybedtools import BedTool
 import random
 from scipy import sparse
 import glob
+import os
 
 
 class DataGenerator(Sequence):
