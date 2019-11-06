@@ -1,5 +1,5 @@
 # HiC_data_generator
-
+## A tf.keras data generator for HiC data
 The input files are hiccups looplist and bedpe formatted files. The generator splits the input that into batches and uses pybedtools to extract reads overlapping the loops.  
 Generates batches of data of shape:  
 X is a matrix of shape (batch_size) * (radius/binsize*2+1) * (radius/binsize*2+1)  
