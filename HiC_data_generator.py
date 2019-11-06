@@ -62,36 +62,32 @@ class DataGenerator(Sequence):
             return X
 
     def on_epoch_begin(self):        
-        self.indices = np.arange(self.interactions_count)
-        if self.shuffle == True:
-            #np.random.shuffle(self.indices)
-            random.Random(4).shuffle(self.indices)
-        #last batch is incomplete. I don't know how will keras handle it if it's smaller than expected dim.
         num_batches = int(np.ceil(self.interactions_count / self.pre_augment_batch_size))
-        print(num_batches)
-        batch_selector = {self.indices[i]: (i // self.pre_augment_batch_size) for i in range(len(self.indices))}
-        #print(batch_selector)
-        reverse_batch_selector = {i: self.indices[(i * self.pre_augment_batch_size):((i + 1) * self.pre_augment_batch_size)] for i in range(num_batches)}
-        #print(reverse_batch_selector)
-        with open(self.interactions_filename, 'r') as infile:
-            lines = infile.readlines()
+        #print(num_batches)
+        d = pd.read_csv(self.interactions_filename, sep = "\t", header = None)
+        d['class'] = 'p'
+        d.loc[d.loc[:,7] < 0,'class'] = 'n'
+        d_pos = d[d['class'] == 'p']
+        d_neg = d[d['class'] == 'n']
+        #print(d_pos.shape)
+        #print(d_neg.shape)
+        pre_aug_pos_count = int(np.ceil(float(d_pos.shape[0])/d.shape[0] * self.pre_augment_batch_size))
+        pre_aug_neg_count = self.pre_augment_batch_size - pre_aug_pos_count
+        #print("sizes:")
+        #print(pre_aug_pos_count)
+        #print(pre_aug_neg_count)
+        if self.shuffle == True:
+            d_pos = d_pos.sample(frac=1).reset_index(drop=True)
+            d_neg = d_neg.sample(frac=1).reset_index(drop=True)
+        for old_file in glob.glob("data_splits/train.datagen_mbatch*"):
+            os.remove(old_file)
         for batch_num in range(num_batches):
-            batch_lines = [lines[i] for i in reverse_batch_selector[batch_num]]
-            with open(self.interactions_filename + "_mbatch" + str(batch_num), 'w') as ofile:
-                ofile.write(''.join(batch_lines))
-        '''
-        for i in range(num_batches):
-            batch_indices = self.indices[(i * self.pre_augment_batch_size):((i + 1) * self.pre_augment_batch_size)]
-            [batch_selector[index] = i
-            batch_indices = map(str, batch_indices)
-            line_nums = 'p;'.join(batch_indices) + 'p'
-            command = "sed -n '" + line_nums + "' " + self.interactions_filename
-            o_filename = self.interactions_filename + "_mbatch" + str(i)
-            f = open(o_filename, 'w')
-            check_call(command, stdout = f, shell = True)
-            f.close()
-        '''
-        
+            batch_pos = d_pos.iloc[(batch_num*pre_aug_pos_count):((batch_num+1)*pre_aug_pos_count),:]
+            batch_neg = d_neg.iloc[(batch_num*pre_aug_neg_count):((batch_num+1)*pre_aug_neg_count),:]
+            batch_all = pd.concat([batch_pos, batch_neg], axis = 0)
+            batch_all.drop('class', axis = 1, inplace = True)
+            batch_all.sample(frac=1).reset_index(drop = True)
+            batch_all.to_csv(self.interactions_filename + "_mbatch" + str(batch_num), sep = "\t", header = None) 
 
     def _generate_data(self, interactions_bedpe, to_fit):
         # Generate data
