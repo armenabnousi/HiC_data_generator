@@ -117,7 +117,7 @@ class DataGenerator(Sequence):
             #X = df
             #X = roll_matrices
             ####****separate the .datagen generation because it needs to be done before so the negative samples can be added.
-            
+        X = X.reshape(X.shape + (1,)) 
         return X, y
     
     def _generate_y(self, df):
@@ -128,6 +128,7 @@ class DataGenerator(Sequence):
     @staticmethod
     def _get_ydata(df, radius, binsize, random_shifts):
         #print(df.head())
+        radius_unit = radius / binsize
         cluster_radius = df.iloc[0]['cluster_radius']
         cluster_number = df.iloc[0]['cluster_number']
         if random_shifts:
@@ -136,11 +137,11 @@ class DataGenerator(Sequence):
             x_move, y_move = 0, 0
         if cluster_radius >= 0:
             is_true = 1
-            pos_x, pos_y = radius / binsize + y_move, radius / binsize + x_move
+            pos_x, pos_y = radius_unit + y_move, radius_unit + x_move
         else:
             is_true = pos_x = pos_y = 0
             pos_x, pos_y = x_move, y_move
-        return is_true, cluster_radius, pos_x, pos_y, x_move, y_move, cluster_number
+        return is_true, cluster_radius/radius_unit, pos_x/(2*radius_unit+1), pos_y/(2*radius_unit+1) #, x_move, y_move, cluster_number
         
             
 
