@@ -20,7 +20,7 @@ class DataGenerator(Sequence):
     def __init__(self, hiccups_filename, hic_prefix, hic_suffix, binsize, radius, 
                  augmentation_rate = 5, downsample_min = 1, random_shifts = True,
                  chromosome_count = 22, to_fit=True, batch_size=32,
-                 n_channels=1, shuffle=True):
+                 n_channels=1, shuffle=True, in_memory = False):
         self.hiccups_filename = hiccups_filename
         self.interactions_filename = self.hiccups_filename
         self.hic_prefix = hic_prefix
@@ -34,13 +34,17 @@ class DataGenerator(Sequence):
         self.n_channels = n_channels
         self.chromosome_count = chromosome_count
         self.shuffle = shuffle
+        self.in_memory = in_memory
+        self.batch_indices = None
         #self.convert_hiccups(self.interactions_filename, self.hiccups_filename)
         self.interactions_count = int(check_output(["wc", "-l", self.interactions_filename]).split()[0])
-        self.interactions = pd.read_csv(self.interactions_filename, sep = "\t")
+        self.interactions = pd.read_csv(self.interactions_filename, sep = "\t", header = None)
         self.pre_augment_batch_size = int(np.ceil(self.batch_size / self.augmentation_rate))
         self.downsample_min = downsample_min
         self.dim = int(self.radius / self.binsize) * 2 + 1
         print(self.interactions_count, self.batch_size, self.pre_augment_batch_size, self.dim)
+        if (self.in_memory):
+            self.data = self._extract_bedpe_intersections(self.interactions_filename)
         self.on_epoch_begin()
 
     def __len__(self):
@@ -53,7 +57,10 @@ class DataGenerator(Sequence):
         
         #subset interactions for the batch
         #interactions = self.interactions.iloc[batch_indices,:]
-        interactions_bedpe = BedTool(self.interactions_filename + "_mbatch" + str(index))
+        if not self.in_memory:
+            interactions_bedpe = BedTool(self.interactions_filename + "_mbatch" + str(index))
+        else:
+            interactions_bedpe = self.interactions.iloc[self.batch_indices[index],:]
 
         # Generate data
         X, y = self._generate_data(interactions_bedpe, self.to_fit)
@@ -78,22 +85,46 @@ class DataGenerator(Sequence):
         #print("sizes:")
         #print(pre_aug_pos_count)
         #print(pre_aug_neg_count)
-        if self.shuffle == True:
-            d_pos = d_pos.sample(frac=1).reset_index(drop=True)
-            d_neg = d_neg.sample(frac=1).reset_index(drop=True)
-        for old_file in glob.glob("data_splits/train.datagen_mbatch*"):
-            os.remove(old_file)
-        for batch_num in range(num_batches):
-            batch_pos = d_pos.iloc[(batch_num*pre_aug_pos_count):((batch_num+1)*pre_aug_pos_count),:]
-            batch_neg = d_neg.iloc[(batch_num*pre_aug_neg_count):((batch_num+1)*pre_aug_neg_count),:]
-            batch_all = pd.concat([batch_pos, batch_neg], axis = 0)
-            batch_all.drop('class', axis = 1, inplace = True)
-            batch_all.sample(frac=1).reset_index(drop = True)
-            batch_all.to_csv(self.interactions_filename + "_mbatch" + str(batch_num), sep = "\t", header = None, index = False) 
+        if not self.in_memory:
+            if self.shuffle == True:
+                d_pos = d_pos.sample(frac=1).reset_index(drop=True)
+                d_neg = d_neg.sample(frac=1).reset_index(drop=True)
+            for old_file in glob.glob("data_splits/train.datagen_mbatch*"):
+                os.remove(old_file)
+            for batch_num in range(num_batches):
+                batch_pos = d_pos.iloc[(batch_num*pre_aug_pos_count):((batch_num+1)*pre_aug_pos_count),:]
+                batch_neg = d_neg.iloc[(batch_num*pre_aug_neg_count):((batch_num+1)*pre_aug_neg_count),:]
+                batch_all = pd.concat([batch_pos, batch_neg], axis = 0)
+                batch_all.drop('class', axis = 1, inplace = True)
+                batch_all.sample(frac=1).reset_index(drop = True)
+                batch_all.to_csv(self.interactions_filename + "_mbatch" + str(batch_num), sep = "\t", header = None, index = False)
+        else:
+            pos_indices = list(d_pos.index.values)
+            neg_indices = list(d_neg.index.values)
+            if self.shuffle == True:
+                random.shuffle(pos_indices)
+                random.shuffle(neg_indices)
+            batch_indices = {}
+            for batch_num in range(num_batches):
+                batch_pos_indices = pos_indices[(batch_num*pre_aug_pos_count):((batch_num+1)*pre_aug_pos_count)]
+                batch_neg_indices = neg_indices[(batch_num*pre_aug_neg_count):((batch_num+1)*pre_aug_neg_count)]
+                batch_indices[batch_num] = batch_pos_indices + batch_neg_indices
+            self.batch_indices = batch_indices
 
     def _generate_data(self, interactions_bedpe, to_fit):
         # Generate data
-        df = self._extract_bedpe_intersections(interactions_bedpe)
+        if not self.in_memory:
+            df = self._extract_bedpe_intersections(interactions_bedpe)
+        else:
+            interactions_bedpe = interactions_bedpe.iloc[:, [0,1,2,3,4,5]]
+            merge_columns = ["chr1", "cluster_x1", "cluster_x2", "chr2", "cluster_y1", "cluster_y2"]
+            interactions_bedpe.columns = merge_columns
+            #print(self.data.info())
+            #print(interactions_bedpe.info())
+            df = self.data.merge(interactions_bedpe)
+            #print(interactions_bedpe.shape)
+            #print(self.data.shape)
+            #print(df.shape)
         #print("now grouping")
         #print(df.head())
         #print(df.tail())
