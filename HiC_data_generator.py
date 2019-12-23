@@ -19,7 +19,7 @@ import os
 class DataGenerator(Sequence):
     def __init__(self, hiccups_filename, hic_prefix, hic_suffix, binsize, radius, 
                  augmentation_rate = 5, downsample_min = 1, random_shifts = True,
-                 chromosome_count = 22, to_fit=True, batch_size=32,
+                 chromosome_count = 22, to_fit=True, batch_size=None,
                  n_channels=1, shuffle=True, in_memory = False):
         self.hiccups_filename = hiccups_filename
         self.interactions_filename = self.hiccups_filename
@@ -30,7 +30,6 @@ class DataGenerator(Sequence):
         self.augmentation_rate = augmentation_rate
         self.to_fit = to_fit
         self.random_shifts = random_shifts
-        self.batch_size = batch_size
         self.n_channels = n_channels
         self.chromosome_count = chromosome_count
         self.shuffle = shuffle
@@ -38,6 +37,9 @@ class DataGenerator(Sequence):
         self.batch_indices = None
         #self.convert_hiccups(self.interactions_filename, self.hiccups_filename)
         self.interactions_count = int(check_output(["wc", "-l", self.interactions_filename]).split()[0])
+        if not batch_size:
+            batch_size = self.interactions_count
+        self.batch_size = batch_size
         self.interactions = pd.read_csv(self.interactions_filename, sep = "\t", header = None)
         self.pre_augment_batch_size = int(np.ceil(self.batch_size / self.augmentation_rate))
         self.downsample_min = downsample_min
