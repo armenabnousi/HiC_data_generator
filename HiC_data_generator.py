@@ -223,7 +223,7 @@ class DataGenerator(Sequence):
     def _make_full_matrix(d, dim, mat, labels, random_shifts):
         cluster_name = d.iloc[0]['cluster_name']
         #first_dim = labels[cluster_name]
-        first_dim = d.iloc[0]['cluster_number']
+        first_dim = int(float(d.iloc[0]['cluster_number']))
         max_i_j = mat.shape[1]
             
         submat = sparse.csc_matrix((d['count'], (d['i'], d['j'])), shape = (mat.shape[1], mat.shape[2])).todense()
@@ -238,7 +238,7 @@ class DataGenerator(Sequence):
             d['j'] = d['j'] + y_move
             '''
 
-        mat[first_dim] = submat
+        mat[first_dim, :, :] = submat
     
     def convert_hiccups(self, converted, hiccups):
         d = pd.read_csv(hiccups, sep = "\t")
